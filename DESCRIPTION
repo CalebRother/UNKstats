@@ -2,7 +2,7 @@ Package: UNKstats
 Title: A package for teaching UNK Biostats
 Version: 0.0.0.9000
 Authors@R: 
-    person("Caleb", "Rother", , "rotherc@lopers.unk.edu"))
+    person("Caleb", "Rother", "rotherc@lopers.unk.edu"))
 Description: This package uses a larger auto_anova function and a logic tree to determine what type of ANOVA needs to be run on input data. The follow "run_" functions simplify this data input process to make it easier for students to use.
 License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
     license
