@@ -1,14 +1,17 @@
 Package: UNKstats
-Title: A package for teaching UNK Biostats
+Title: A Package for Teaching UNK Biostats
 Version: 0.0.0.9000
-Authors@R: c(
-    person(given = "Caleb", family = "Rother",
-           email = "rotherc@lopers.unk.edu",
-           role = c("aut", "cre"))
-)
-Description: This package uses a larger auto_anova function and a logic tree to determine what type of ANOVA needs to be run on input data. The follow "run_" functions simplify this data input process to make it easier for students to use.
-License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
-    license
+Authors@R:
+    c(
+      person(given = "Caleb", family = "Rother",
+             email = "rotherc@lopers.unk.edu",
+             role = c("aut", "cre"))
+    )
+Description: This package uses a larger 'auto_anova()' function and a logic tree
+    to determine which ANOVA to run on input data. The 'run_*' functions simplify
+    input to make it easier for students to use.
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
+Depends: R (>= 4.1.0)
