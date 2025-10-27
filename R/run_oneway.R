@@ -1,22 +1,23 @@
-#' @noRd
-.as_factor <- function(x) if (is.factor(x)) x else factor(x)
-
-#' @noRd
-.stop_miss <- function(df, cols) {
-  miss <- cols[!cols %in% names(df)]
-  if (length(miss)) stop("Column(s) not found: ", paste(miss, collapse = ", "), call. = FALSE)
-}
-
-#' One-way ANOVA (student-friendly)
+#' One-way comparison (ANOVA or Kruskal–Wallis only)
 #'
-#' Runs one-way ANOVA, Welch, or Kruskal–Wallis automatically and returns
-#' test info, tidy tables, and a plot.
+#' @param data A data frame.
+#' @param dv Character; numeric outcome column.
+#' @param group Character; grouping factor (≥3 levels recommended).
+#' @param parametric Logical; if TRUE runs classic one-way ANOVA (+ Tukey HSD),
+#'   if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).
+#' @param adjust P-adjust for ANOVA Tukey letters display label only
+#'   (TukeyHSD uses Tukey internally). Ignored for Kruskal (BH is used).
+#' @param show_means "point","point+ci","none".
+#' @param theme_base ggplot2 theme.
 #'
+#' @return A list with test_info, model (ANOVA only), anova_table,
+#'   posthoc, letters, plot. Class "teach_anova_result".
 #' @export
 run_oneway <- function(
     data,
-    dv,                     # numeric column name, e.g. "Score"
-    group,                  # factor with 3+ levels; if 2 levels, it still works but t-tests may be better
+    dv,
+    group,
+    parametric = FALSE,
     adjust = c("tukey","sidak","holm","bonferroni","BH"),
     show_means = c("point","point+ci","none"),
     theme_base = ggplot2::theme_bw()
@@ -28,123 +29,129 @@ run_oneway <- function(
 
   df <- data[stats::complete.cases(data[, c(dv, group), drop = FALSE]), , drop = FALSE]
   if (nrow(df) < nrow(data)) {
-    message("Removed ", nrow(data) - nrow(df), " row(s) with missing values in {", dv, ", ", group, "}." )
+    message("Removed ", nrow(data) - nrow(df),
+            " row(s) with missing values in {", dv, ", ", group, "}." )
   }
 
   # coerce types
-  df[[group]] <- .as_factor(df[[group]])
   if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
+  df[[group]] <- .as_factor(df[[group]])
 
-  # build formula and call your engine
+  # helpers ---------------------------------------------------------------
   fml <- stats::as.formula(paste(dv, "~", group))
-  res <- auto_anova(
-    formula = fml,
-    data = df,
-    which_factor = group,
-    pairwise_adjust = adjust,
-    show_means = show_means,
-    theme_base = theme_base
-  )
 
-  # Attach a light APA one-liner for printing
-  class(res) <- c("teach_anova_result", class(res))
-  attr(res, "meta") <- list(
+  mean_cl_normal_local <- function(x, conf = 0.95) {
+    x <- x[is.finite(x)]
+    n  <- length(x); m <- mean(x)
+    se <- stats::sd(x) / max(1, sqrt(n))
+    mult <- if (n > 1) stats::qt((1 + conf)/2, df = n - 1) else 0
+    data.frame(y = m, ymin = m - mult * se, ymax = m + mult * se)
+  }
+
+  pmat_to_letters <- function(pairs_df, g1, g2, pcol, alpha = 0.05) {
+    groups <- sort(unique(c(as.character(pairs_df[[g1]]), as.character(pairs_df[[g2]]))))
+    M <- matrix(1, length(groups), length(groups), dimnames = list(groups, groups))
+    for (i in seq_len(nrow(pairs_df))) {
+      a <- as.character(pairs_df[[g1]][i]); b <- as.character(pairs_df[[g2]][i])
+      p <- as.numeric(pairs_df[[pcol]][i]); M[a,b] <- p; M[b,a] <- p
+    }
+    multcompView::multcompLetters(M < alpha, compare = "<")$Letters
+  }
+
+  # run -------------------------------------------------------------------
+  if (isTRUE(parametric)) {
+    # -------- One-way ANOVA + TukeyHSD --------
+    fit <- stats::aov(fml, data = df)
+    an_tbl <- broom::tidy(stats::anova(fit))
+
+    # TukeyHSD returns matrix with rownames like "B-A"
+    tk <- stats::TukeyHSD(fit)[[group]]
+    posthoc <- tibble::tibble(
+      contrast = rownames(tk),
+      diff = tk[, "diff"],
+      lwr  = tk[, "lwr"],
+      upr  = tk[, "upr"],
+      p.adj = tk[, "p adj"]
+    )
+    # split contrast "B-A" → group1, group2
+    spl <- strsplit(posthoc$contrast, "-")
+    posthoc$group2 <- vapply(spl, `[`, character(1), 1)
+    posthoc$group1 <- vapply(spl, `[`, character(1), 2)
+
+    # letters from Tukey p-values
+    letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
+    letters_df <- tibble::tibble(!!group := names(letters_vec), .group = unname(letters_vec))
+
+    subtitle_txt <- "One-way ANOVA + Tukey HSD"
+
+    model <- fit
+
+  } else {
+    # -------- Kruskal–Wallis + Dunn (BH) --------
+    kw <- stats::kruskal.test(fml, data = df)
+    an_tbl <- tibble::tibble(
+      term = group,
+      statistic = unname(kw$statistic),
+      df = unname(kw$parameter),
+      p.value = unname(kw$p.value),
+      method = "Kruskal–Wallis"
+    )
+
+    dunn <- rstatix::dunn_test(df, fml, p.adjust.method = "BH")
+    posthoc <- dplyr::transmute(dunn, group1 = group1, group2 = group2, p.adj = p.adj)
+
+    letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
+    letters_df <- tibble::tibble(!!group := names(letters_vec), .group = unname(letters_vec))
+
+    subtitle_txt <- "Kruskal–Wallis + Dunn (BH)"
+    model <- NULL
+  }
+
+  # plot ------------------------------------------------------------------
+  y_range <- range(df[[dv]], na.rm = TRUE)
+  y_pad   <- 0.05 * diff(y_range)
+  y_top   <- max(df[[dv]], na.rm = TRUE) + y_pad
+
+  p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[group]], y = .data[[dv]])) +
+    ggplot2::geom_boxplot(outlier.shape = NA, width = 0.6) +
+    ggplot2::geom_jitter(width = 0.12, alpha = 0.5, size = 1.6) +
+    {
+      if (show_means == "point") {
+        list(ggplot2::stat_summary(fun = "mean", geom = "point", size = 2.6, shape = 21))
+      } else if (show_means == "point+ci") {
+        list(
+          ggplot2::stat_summary(fun = "mean", geom = "point", size = 2.6, shape = 21),
+          ggplot2::stat_summary(fun.data = mean_cl_normal_local, geom = "errorbar", width = 0.2)
+        )
+      } else NULL
+    } +
+    ggplot2::geom_text(
+      data = letters_df,
+      ggplot2::aes(x = .data[[group]], y = y_top, label = .group),
+      vjust = 0, size = 5
+    ) +
+    theme_base +
+    ggplot2::labs(x = group, y = dv, subtitle = subtitle_txt)
+
+  # return ----------------------------------------------------------------
+  out <- list(
+    test_info = list(
+      test = if (parametric) "oneway_anova_tukey" else "kruskal_dunn",
+      parametric = parametric
+    ),
+    model = model,
+    anova_table = an_tbl,
+    posthoc = posthoc,
+    letters = letters_df,
+    plot = p
+  )
+  class(out) <- c("teach_anova_result", class(out))
+  attr(out, "meta") <- list(
     design = "oneway_between",
     dv = dv,
     factors = list(between = group),
-    adjust = adjust
+    adjust = if (parametric) adjust else "BH",
+    parametric = parametric
   )
-  res
-}
-
-#' Factorial ANOVA (student-friendly)
-#'
-#' Runs factorial ANOVA or ART as needed and returns tidy tables + plot.
-#'
-#' @export
-run_factorial <- function(
-    data,
-    dv,                       # numeric
-    between,                  # character vector of 2+ factor column names
-    which_factor = NULL,      # which term to letter/pairwise (e.g., "A", "B", or "A:B")
-    adjust = c("sidak","tukey","holm","bonferroni","BH"),
-    show_means = c("point","point+ci","none"),
-    theme_base = ggplot2::theme_bw()
-) {
-  adjust <- match.arg(adjust)
-  show_means <- match.arg(show_means)
-
-  if (length(between) < 2) stop("`between` must have 2 or more factors for factorial designs.", call. = FALSE)
-  .stop_miss(data, c(dv, between))
-
-  df <- data[stats::complete.cases(data[, c(dv, between), drop = FALSE]), , drop = FALSE]
-  if (nrow(df) < nrow(data)) {
-    message("Removed ", nrow(data) - nrow(df), " row(s) with missing values in {", dv, ", ", paste(between, collapse=", "), "}." )
-  }
-
-  # coerce
-  for (b in between) df[[b]] <- .as_factor(df[[b]])
-  if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
-
-  # default which_factor = first main effect if not given
-  if (is.null(which_factor)) which_factor <- between[1]
-
-  rhs <- paste(between, collapse = " * ")
-  fml <- stats::as.formula(paste(dv, "~", rhs))
-
-  res <- auto_anova(
-    formula = fml,
-    data = df,
-    which_factor = which_factor,
-    pairwise_adjust = adjust,
-    show_means = show_means,
-    theme_base = theme_base
-  )
-
-  class(res) <- c("teach_anova_result", class(res))
-  attr(res, "meta") <- list(
-    design = "factorial_between",
-    dv = dv,
-    factors = list(between = between, which_factor = which_factor),
-    adjust = adjust
-  )
-  res
-}
-
-#' @exportS3Method print teach_anova_result
-print.teach_anova_result <- function(x, ...) {
-  meta <- attr(x, "meta")
-  ti   <- x$test_info
-  atbl <- x$anova_table
-
-  cat("\nDesign:", meta$design, "\n")
-  cat("DV:", meta$dv, "\n")
-  if (!is.null(meta$factors$between)) {
-    cat("Between factor(s):", paste(meta$factors$between, collapse = ", "), "\n")
-  }
-  if (!is.null(meta$factors$which_factor)) {
-    cat("Letters/posthocs on:", meta$factors$which_factor, "\n")
-  }
-  cat("Adjustment:", meta$adjust, "\n")
-  cat("Assumptions → Normality:", ifelse(ti$normality_ok, "OK", "fail"),
-      sprintf("(%s)", ti$normality_note), "; Homogeneity:",
-      ifelse(ti$homogeneity_ok, "OK", "fail"), "\n")
-  if (isTRUE(ti$welch_preference_applied)) {
-    cat("Decision:", ti$welch_preference_reason, "\n")
-  }
-  cat("Chosen omnibus:", ti$test, "\n")
-
-  # Show a compact ANOVA table if present
-  if (!is.null(atbl)) {
-    try({
-      keep <- intersect(
-        c("term","df","df1","df2","statistic","p.value","method",
-          "Sum Sq","Mean Sq","F value","Pr(>F)"),
-        names(atbl)
-      )
-      print(utils::head(atbl[keep], 10), row.names = FALSE)
-    }, silent = TRUE)
-  }
-
-  invisible(x)
+  out
 }
