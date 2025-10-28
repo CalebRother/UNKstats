@@ -1,0 +1,65 @@
+run_oneway() is a single-function wrapper that lets students run a one-factor comparison without worrying about which test or plotting steps to use.
+----------------------------------------------------------------
+Input:
+data — the data frame
+dv — name of numeric dependent variable
+group — name of categorical factor (≥ 2 levels)
+parametric — whether to use ANOVA (TRUE) or Kruskal–Wallis (FALSE) - Default is FALSE
+optional display and theme arguments
+
+----------------------------------------------------------------
+Output:
+a structured list that contains:
+anova_table — summary table (ANOVA or KW)
+posthoc — pairwise comparisons
+letters — compact group letters (CLD-style)
+plot — ggplot with boxes, means/CI, and letters
+
+----------------------------------------------------------------
+run_oneway()
+│
+├─► 1. Check inputs
+│      • confirm data frame has `dv` and `group`
+│      • drop missing values
+│      • ensure dv is numeric, group is factor
+│
+├─► 2. Build formula object:   dv ~ group
+│
+├─► 3. Branch based on `parametric`
+│
+│   ┌── parametric = TRUE
+│   │     • Fit one-way ANOVA:   aov(dv ~ group, data)
+│   │     • Extract omnibus table with broom::tidy()
+│   │     • Run TukeyHSD() for all pairwise comparisons
+│   │     • Convert Tukey output into a tibble
+│   │     • Derive significance letters (see CLD section)
+│   │     • Subtitle: “One-way ANOVA + Tukey HSD”
+│   │
+│   └── parametric = FALSE
+│         • Run Kruskal-Wallis:  kruskal.test(dv ~ group)
+│         • Build simple summary tibble (χ², df, p)
+│         • Run pairwise Dunn test via rstatix::dunn_test()
+│         • Adjust p-values with BH method
+│         • Derive significance letters (same CLD logic)
+│         • Subtitle: “Kruskal–Wallis + Dunn (BH)”
+│
+└─► 4. Plotting
+       • Boxplots + jitter points
+       • Optional mean ± CI (for parametric visualization)
+       • Letters placed slightly above max value per group
+       • Subtitle identifies which test was used
+----------------------------------------------------------------
+
+data →  check columns & clean
+           │
+           ▼
+   parametric = TRUE ─────► ANOVA + TukeyHSD ──► p-matrix ─► CLD letters
+           │
+           ▼
+   parametric = FALSE ────► Kruskal + Dunn ───► p-matrix ─► CLD letters
+           │
+           ▼
+         ggplot boxes + jitter + (optional) means + CLD letters   (defaults point+ci)
+           │
+           ▼
+        return list(test_info, anova_table, posthoc, letters, plot)
