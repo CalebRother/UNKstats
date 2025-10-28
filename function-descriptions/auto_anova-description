@@ -1,0 +1,88 @@
+Logic tree:
+
+Parse formula: response ~ terms
+Count terms (k_terms)
+
+If k_terms == 1 (one-way):
+  • Fit quick lm to get residuals → normality test (adaptive: Shapiro / AD / JB)
+  • Levene’s test for homogeneity
+  • If normality OK and homogeneity OK:
+        → one-way ANOVA
+        → emmeans pairwise (adjust = pairwise_adjust), CLD letters
+  • Else if normality OK and homogeneity FAIL and prefer_welch_when_large_n with all groups ≥ min_n_for_welch:
+        → Welch ANOVA
+        → Games–Howell posthocs (rstatix), CLD letters via p-matrix
+  • Else:
+        → Kruskal–Wallis
+        → Dunn posthocs (BH), CLD letters via p-matrix
+
+If k_terms ≥ 2 (factorial):
+  • Check normality at the cell level (each A×B combination)
+  • Levene’s (on cell factor)
+  • If normal + homogeneous:
+        → factorial ANOVA (aov)
+        → emmeans on which_factor (main effect or interaction), CLD letters
+  • Else:
+        → ART (ARTool::art)
+        → artlm(which_factor) + emmeans for that term, CLD letters
+
+--------------------------------------------------------------
+data + formula ──► parse terms
+      │
+      ├─ normality:
+      │    • residuals (1-way) or per-cell (factorial)
+      │    • auto: Shapiro / AD / JB
+      │
+      ├─ homogeneity: Levene
+      │
+      ├─ If one-way:
+      │     ├─ normal & homo  → ANOVA → emmeans + CLD (multcomp::cld)
+      │     ├─ normal & !homo & large n → Welch → Games–Howell → p-matrix → CLD
+      │     └─ else → Kruskal–Wallis → Dunn (BH) → p-matrix → CLD
+      │
+      └─ If factorial (≥2 terms):
+            ├─ normal & homo → factorial ANOVA → emmeans on which_factor → CLD
+            └─ else → ART → artlm(which_factor) + emmeans → CLD
+
+Return: test_info, model (if any), anova_table, emmeans/posthoc, letters, plot
+
+--------------------------------------------------------------
+Edge cases & safeguards:
+
+Large number of groups: if n_groups > max_groups_for_letters (default 25) it skips letters for speed and sets test_info$letters_skipped = TRUE.
+Missing data: silently dropped with a message about rows removed.
+which_factor defaulting:
+One-way: uses the single term.
+Factorial: defaults to the first main effect if not specified.
+
+Normality + Homogeneity details:
+Normality (adaptive):
+The function picks a test based on sample size:
+≤ 2,000: Shapiro–Wilk
+2,001–50,000: Anderson–Darling (nortest::ad.test)
+50,000: Jarque–Bera (tseries::jarque.bera.test)
+If there are too many points for Shapiro (shapiro_limit), it subsamples (reproducibly via seed).
+
+Homogeneity:
+Levene’s test via car::leveneTest.
+One-way: leveneTest(response ~ group)
+Factorial: it builds a temporary cell factor (A:B:...) and runs leveneTest(response ~ cell).
+Welch heuristic (one-way only):
+If normality passes but Levene fails and every group has n ≥ min_n_for_welch (default 15), it prefers Welch ANOVA over nonparametrics. test_info$welch_preference_* explains the decision.
+
+--------------------------------------------------------------
+Dependencies used
+Assumptions: car, nortest, tseries
+Parametric models: base stats (aov, lm, oneway.test)
+Nonparametrics: rstatix (Dunn, Games–Howell), ARTool (ART, art, artlm)
+Post-hocs/letters: emmeans, multcomp, multcompView
+
+--------------------------------------------------------------
+Plotting behavior
+Geometry: boxplot (no outliers drawn) + jittered points
+Means/CI (optional):
+"point" → mean dot
+"point+ci" → mean + t-based CI (local helper; not Hmisc)
+Letters: placed just above group maxima (y_max + 5% range)
+Subtitle: configurable verbosity (full, compact, minimal) showing test choice and assumption results.
+Tidy/plot: broom, dplyr, tibble, ggplot2, glue (optional)
