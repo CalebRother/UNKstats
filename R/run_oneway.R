@@ -7,7 +7,7 @@
 #'   if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).
 #' @param adjust P-adjust for ANOVA Tukey letters display label only
 #'   (TukeyHSD uses Tukey internally). Ignored for Kruskal (BH is used).
-#' @param show_means "point","point+ci","none".
+#' @param show_means "point","none" — controls mean point display.
 #' @param theme_base ggplot2 theme.
 #'
 #' @return A list with test_info, model (ANOVA only), anova_table,
@@ -19,7 +19,7 @@ run_oneway <- function(
     group,
     parametric = FALSE,
     adjust = c("tukey","sidak","holm","bonferroni","BH"),
-    show_means = c("point","point+ci","none"),
+    show_means = c("point","none"),
     theme_base = ggplot2::theme_bw()
 ) {
 
@@ -34,20 +34,12 @@ run_oneway <- function(
             " row(s) with missing values in {", dv, ", ", group, "}." )
   }
 
-  # coerce types
+  # coerce types ----------------------------------------------------------
   if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
   df[[group]] <- .as_factor(df[[group]])
 
   # helpers ---------------------------------------------------------------
   fml <- stats::as.formula(paste(dv, "~", group))
-
-  mean_cl_normal_local <- function(x, conf = 0.95) {
-    x <- x[is.finite(x)]
-    n  <- length(x); m <- mean(x)
-    se <- stats::sd(x) / max(1, sqrt(n))
-    mult <- if (n > 1) stats::qt((1 + conf)/2, df = n - 1) else 0
-    data.frame(y = m, ymin = m - mult * se, ymax = m + mult * se)
-  }
 
   pmat_to_letters <- function(pairs_df, g1, g2, pcol, alpha = 0.05) {
     groups <- sort(unique(c(as.character(pairs_df[[g1]]), as.character(pairs_df[[g2]]))))
@@ -102,9 +94,6 @@ run_oneway <- function(
 
     subtitle_txt <- "Kruskal–Wallis + Dunn (BH)"
     model <- NULL
-
-    # Nonparametric: mean CIs don’t make sense visually
-    if (show_means == "point+ci") show_means <- "point"
   }
 
   # plot ------------------------------------------------------------------
@@ -115,28 +104,8 @@ run_oneway <- function(
   p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[group]], y = .data[[dv]])) +
     ggplot2::geom_boxplot(outlier.shape = NA, width = 0.6) +
     ggplot2::geom_jitter(width = 0.12, alpha = 0.5, size = 1.6) +
-
-    # ----- Mean / CI display logic -----
     {
-      if (show_means == "point+ci") {
-        list(
-          ggplot2::stat_summary(
-            fun = "mean",
-            geom = "point",
-            size = 2.6,
-            shape = 21,
-            fill  = "white"
-          ),
-          ggplot2::stat_summary(
-            fun.data = mean_cl_normal_local,
-            geom = "errorbar",
-            width = 0.2,
-            color = "gray40",
-            linetype = "dashed",
-            linewidth = 0.6
-          )
-        )
-      } else if (show_means == "point") {
+      if (show_means == "point") {
         ggplot2::stat_summary(
           fun = "mean",
           geom = "point",
@@ -148,14 +117,11 @@ run_oneway <- function(
         NULL
       }
     } +
-
-    # ----- Posthoc letters -----
     ggplot2::geom_text(
       data = letters_df,
       ggplot2::aes(x = .data[[group]], y = y_top, label = .group),
       vjust = 0, size = 5
     ) +
-
     theme_base +
     ggplot2::labs(x = group, y = dv, subtitle = subtitle_txt)
 
