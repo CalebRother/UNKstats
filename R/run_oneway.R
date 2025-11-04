@@ -22,6 +22,7 @@ run_oneway <- function(
     show_means = c("point","point+ci","none"),
     theme_base = ggplot2::theme_bw()
 ) {
+
   adjust <- match.arg(adjust)
   show_means <- match.arg(show_means)
 
@@ -64,7 +65,6 @@ run_oneway <- function(
     fit <- stats::aov(fml, data = df)
     an_tbl <- broom::tidy(stats::anova(fit))
 
-    # TukeyHSD returns matrix with rownames like "B-A"
     tk <- stats::TukeyHSD(fit)[[group]]
     posthoc <- tibble::tibble(
       contrast = rownames(tk),
@@ -73,17 +73,14 @@ run_oneway <- function(
       upr  = tk[, "upr"],
       p.adj = tk[, "p adj"]
     )
-    # split contrast "B-A" → group1, group2
     spl <- strsplit(posthoc$contrast, "-")
     posthoc$group2 <- vapply(spl, `[`, character(1), 1)
     posthoc$group1 <- vapply(spl, `[`, character(1), 2)
 
-    # letters from Tukey p-values
     letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
     letters_df <- tibble::tibble(!!group := names(letters_vec), .group = unname(letters_vec))
 
     subtitle_txt <- "One-way ANOVA + Tukey HSD"
-
     model <- fit
 
   } else {
@@ -105,6 +102,9 @@ run_oneway <- function(
 
     subtitle_txt <- "Kruskal–Wallis + Dunn (BH)"
     model <- NULL
+
+    # Nonparametric: mean CIs don’t make sense visually
+    if (show_means == "point+ci") show_means <- "point"
   }
 
   # plot ------------------------------------------------------------------
@@ -115,21 +115,47 @@ run_oneway <- function(
   p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[group]], y = .data[[dv]])) +
     ggplot2::geom_boxplot(outlier.shape = NA, width = 0.6) +
     ggplot2::geom_jitter(width = 0.12, alpha = 0.5, size = 1.6) +
+
+    # ----- Mean / CI display logic -----
     {
-      if (show_means == "point") {
-        list(ggplot2::stat_summary(fun = "mean", geom = "point", size = 2.6, shape = 21))
-      } else if (show_means == "point+ci") {
+      if (show_means == "point+ci") {
         list(
-          ggplot2::stat_summary(fun = "mean", geom = "point", size = 2.6, shape = 21),
-          ggplot2::stat_summary(fun.data = mean_cl_normal_local, geom = "errorbar", width = 0.2)
+          ggplot2::stat_summary(
+            fun = "mean",
+            geom = "point",
+            size = 2.6,
+            shape = 21,
+            fill  = "white"
+          ),
+          ggplot2::stat_summary(
+            fun.data = mean_cl_normal_local,
+            geom = "errorbar",
+            width = 0.2,
+            color = "gray40",
+            linetype = "dashed",
+            linewidth = 0.6
+          )
         )
-      } else NULL
+      } else if (show_means == "point") {
+        ggplot2::stat_summary(
+          fun = "mean",
+          geom = "point",
+          size = 2.6,
+          shape = 21,
+          fill  = "white"
+        )
+      } else {
+        NULL
+      }
     } +
+
+    # ----- Posthoc letters -----
     ggplot2::geom_text(
       data = letters_df,
       ggplot2::aes(x = .data[[group]], y = y_top, label = .group),
       vjust = 0, size = 5
     ) +
+
     theme_base +
     ggplot2::labs(x = group, y = dv, subtitle = subtitle_txt)
 
@@ -145,6 +171,7 @@ run_oneway <- function(
     letters = letters_df,
     plot = p
   )
+
   class(out) <- c("teach_anova_result", class(out))
   attr(out, "meta") <- list(
     design = "oneway_between",
@@ -153,5 +180,6 @@ run_oneway <- function(
     adjust = if (parametric) adjust else "BH",
     parametric = parametric
   )
+
   out
 }
