@@ -1,4 +1,4 @@
-# data-raw/prepare_datasets.R
+# raw-data/prepare_datasets.R
 # ---------------------------
 # This script converts raw CSV data into preloaded datasets
 library(usethis)
