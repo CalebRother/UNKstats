@@ -2,18 +2,39 @@
 % Please edit documentation in R/run_oneway.R
 \name{run_oneway}
 \alias{run_oneway}
-\title{One-way ANOVA (student-friendly)}
+\title{One-way comparison (ANOVA or Kruskal–Wallis only)}
 \usage{
 run_oneway(
   data,
   dv,
   group,
+  parametric = FALSE,
   adjust = c("tukey", "sidak", "holm", "bonferroni", "BH"),
-  show_means = c("point", "point+ci", "none"),
+  show_means = c("point", "none"),
   theme_base = ggplot2::theme_bw()
 )
 }
+\arguments{
+\item{data}{A data frame.}
+
+\item{dv}{Character; numeric outcome column.}
+
+\item{group}{Character; grouping factor (≥3 levels recommended).}
+
+\item{parametric}{Logical; if TRUE runs classic one-way ANOVA (+ Tukey HSD),
+if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).}
+
+\item{adjust}{P-adjust for ANOVA Tukey letters display label only
+(TukeyHSD uses Tukey internally). Ignored for Kruskal (BH is used).}
+
+\item{show_means}{"point","none" — controls mean point display.}
+
+\item{theme_base}{ggplot2 theme.}
+}
+\value{
+A list with test_info, model (ANOVA only), anova_table,
+posthoc, letters, plot. Class "teach_anova_result".
+}
 \description{
-Runs one-way ANOVA, Welch, or Kruskal–Wallis automatically and returns
-test info, tidy tables, and a plot.
+One-way comparison (ANOVA or Kruskal–Wallis only)
 }
