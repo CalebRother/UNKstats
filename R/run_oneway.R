@@ -32,9 +32,10 @@ run_oneway <- function(
             " row(s) with missing values in {", dv, ", ", group, "}." )
   }
 
-  # coerce types ----------------------------------------------------------
-  if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
-  df[[group]] <- .as_factor(df[[group]])
+ # coerce types ----------------------------------------------------------
+if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
+df[[group]] <- as.factor(df[[group]])
+
 
   # helpers ---------------------------------------------------------------
   fml <- stats::as.formula(paste(dv, "~", group))
