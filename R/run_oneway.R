@@ -26,8 +26,6 @@ run_oneway <- function(
   adjust <- match.arg(adjust)
   show_means <- match.arg(show_means)
 
-  .stop_miss(data, c(dv, group))
-
   df <- data[stats::complete.cases(data[, c(dv, group), drop = FALSE]), , drop = FALSE]
   if (nrow(df) < nrow(data)) {
     message("Removed ", nrow(data) - nrow(df),
