@@ -44,13 +44,6 @@ run_rm <- function(
   show_means <- match.arg(show_means)
   sphericity_correction <- match.arg(sphericity_correction)
 
-  .stop_miss(data, c(dv, id, within))
-  df <- data[stats::complete.cases(data[, c(dv, id, within), drop = FALSE]), , drop = FALSE]
-  if (nrow(df) < nrow(data)) {
-    message("Removed ", nrow(data) - nrow(df), " row(s) with missing values in {",
-            paste(c(dv, id, within), collapse = ", "), "}." )
-  }
-
   # coerce
   if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
   df[[id]] <- .as_factor(df[[id]])
