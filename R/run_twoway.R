@@ -79,9 +79,11 @@ run_twoway <- function(
   # --- plot ---------------------------------------------------------------
   if (grepl(":", which_factor)) {
     df$.x <- interaction(df[, strsplit(which_factor, ":")[[1]], drop = FALSE], drop = TRUE)
+    letters_df <- dplyr::rename(letters_df, x = .x)  # rename for consistency
     xlab <- which_factor
   } else {
     df$.x <- df[[which_factor]]
+    letters_df <- dplyr::rename(letters_df, x = all_of(which_factor))
     xlab <- which_factor
   }
   
@@ -100,8 +102,7 @@ run_twoway <- function(
     } +
     ggplot2::geom_text(
       data = letters_df,
-      ggplot2::aes(x = if ("x" %in% names(letters_df)) .data$x else .data[[which_factor]],
-                   y = y_top, label = .group),
+      ggplot2::aes(x = x, y = y_top, label = .group),
       vjust = 0, size = 5
     ) +
     theme_base +
