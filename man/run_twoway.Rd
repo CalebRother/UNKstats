@@ -2,7 +2,7 @@
 % Please edit documentation in R/run_twoway.R
 \name{run_twoway}
 \alias{run_twoway}
-\title{Two-way factorial ANOVA}
+\title{Two-way factorial ANOVA (Grouped-Bar Version)}
 \usage{
 run_twoway(
   data,
@@ -17,31 +17,51 @@ run_twoway(
 )
 }
 \arguments{
-\item{data}{A data frame.}
+\item{data}{A data frame containing the variables to be analyzed.}
 
-\item{dv}{Character; numeric dependent variable.}
+\item{dv}{Character; name of the numeric dependent variable.}
 
-\item{factor_a}{Character; first factor (main effect A).}
+\item{factor_a}{Character; first factor (main effect A, used for x-axis grouping).}
 
-\item{factor_b}{Character; second factor (main effect B).}
+\item{factor_b}{Character; second factor (main effect B, used for color fill).}
 
 \item{include_interaction}{Logical; if TRUE includes A*B interaction term (default TRUE).}
 
 \item{which_factor}{Character; which term to perform post-hoc tests on
-(e.g. "A", "B", or "A:B"). Defaults to "A" if unspecified.}
+(e.g., "A", "B", or "A:B"). Defaults to "A" if unspecified.}
 
-\item{adjust}{Adjustment method for emmeans ("tukey","sidak","holm","bonferroni","BH").}
+\item{adjust}{Adjustment method for pairwise comparisons
+("tukey","sidak","holm","bonferroni","BH").}
 
-\item{show_means}{"point" or "none" for mean overlay.}
+\item{show_means}{"point" or "none" — controls whether to show mean points on bars.}
 
-\item{theme_base}{ggplot2 theme.}
+\item{theme_base}{A ggplot2 theme (default = \code{ggplot2::theme_bw()}).}
 }
 \value{
-A list with test_info, model, anova_table, posthoc, letters, and plot.
-Class "teach_anova_result".
+A list containing:
+\itemize{
+\item \code{test_info} — basic metadata on the test.
+\item \code{model} — the ANOVA model object.
+\item \code{anova_table} — ANOVA summary table.
+\item \code{posthoc} — post-hoc pairwise comparison results.
+\item \code{letters} — compact letter display results.
+\item \code{plot} — grouped bar chart (ggplot object).
+}
+Class \code{"teach_anova_result"}.
 }
 \description{
-Fits a 2×(2+) between-subjects factorial ANOVA, optionally with interaction.
-Performs post-hoc pairwise comparisons for a chosen term via emmeans,
-with compact letter displays and a simple boxplot.
+Fits a 2×(2+) between-subjects factorial ANOVA, optionally including interaction.
+Performs post-hoc pairwise comparisons for a chosen term via \code{emmeans},
+produces compact letter displays, and visualizes results with a grouped bar chart.
+}
+\examples{
+set.seed(123)
+df <- expand.grid(
+  A = factor(c("Low","High")),
+  B = factor(c("X","Y","Z"))
+)
+df$Response <- rnorm(nrow(df), mean = rep(c(5,7,9,6,8,10), each = 1), sd = 1)
+result <- run_twoway(df, dv = "Response", factor_a = "A", factor_b = "B")
+result$plot
+
 }
