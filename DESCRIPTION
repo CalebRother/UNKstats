@@ -14,11 +14,9 @@ License: MIT
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3.9000
-
+RoxygenNote: 7.3.3
 Depends:
     R (>= 4.1.0)
-
 Imports:
     ggplot2,
     dplyr,
@@ -30,7 +28,6 @@ Imports:
     multcomp,
     multcompView,
     rstatix
-
 Suggests:
     remotes,
     knitr,
