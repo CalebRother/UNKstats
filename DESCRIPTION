@@ -1,18 +1,37 @@
 Package: UNKstats
 Title: A Package for Teaching UNK Biostats
-Version: 0.0.0.9000
+Version: 0.1.0.0
 Authors@R:
     c(
       person(given = "Caleb", family = "Rother",
              email = "rotherc@lopers.unk.edu",
              role = c("aut", "cre"))
     )
-Description: This package uses a larger 'auto_anova()' function and a logic tree
-    to determine which ANOVA to run on input data. The 'run_*' functions simplify
-    input to make it easier for students to use.
-License: MIT + file LICENSE
+Description: Provides student-friendly wrappers around common statistical
+    tests (ANOVA, repeated measures, Kruskal-Wallis, factorial ANOVA, etc.) 
+    with ggplot visualizations and compact letter displays for post-hoc tests.
+License: MIT
 Encoding: UTF-8
+LazyData: true
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3.9000
-Depends: R (>= 4.1.0)
-LazyData: true
+
+Depends:
+    R (>= 4.1.0)
+
+Imports:
+    ggplot2,
+    dplyr,
+    tibble,
+    tidyr,
+    broom,
+    stats,
+    emmeans,
+    multcomp,
+    multcompView,
+    rstatix
+
+Suggests:
+    remotes,
+    knitr,
+    rmarkdown
