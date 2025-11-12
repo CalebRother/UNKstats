@@ -19,6 +19,9 @@ find_mode <- function(x) {
     print("No mode.")
   }else{
     # return the value with the highest count
-    u[tab == max(tab)]
+    mode_x <- u[tab == max(tab)]
+    count_mode <- max(tab)
+    print(paste0("Mode: ", mode_x))
+    print(paste0("Mode count: ", count_mode))
   }
 }
