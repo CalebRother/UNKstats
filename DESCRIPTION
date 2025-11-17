@@ -27,7 +27,8 @@ Imports:
     emmeans,
     multcomp,
     multcompView,
-    rstatix
+    rstatix,
+    afex
 Suggests:
     remotes,
     knitr,

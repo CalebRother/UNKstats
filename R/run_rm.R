@@ -1,14 +1,3 @@
-#' @noRd
-.require_pkg <- function(pkg) {
-  if (!requireNamespace(pkg, quietly = TRUE))
-    stop("Package '", pkg, "' is required for this function. Please install it.", call. = FALSE)
-}
-
-# ---------- Repeated-measures ANOVA (within-subjects) ----------
-# - 1+ within factors
-# - requires id
-# - Posthocs via emmeans on the 'within' term or interaction you choose
-
 #' Repeated-measures ANOVA (student-friendly)
 #'
 #' Fits an RM-ANOVA via `afex::aov_ez()`, reports GG/HF corrections,
@@ -22,7 +11,7 @@
 #' @param adjust P-adjust for emmeans ("sidak","tukey","holm","bonferroni","BH").
 #' @param show_means "point","point+ci","none".
 #' @param theme_base ggplot2 theme.
-#' @param spaghetti Logical. Draw per-subject lines.
+#' @param spaghetti Logical. (Currently unused for plotting; reserved for future.)
 #' @param sphericity_correction "GG","HF","none" for ANOVA table.
 #'
 #' @return A list with test_info, model, anova_table, emmeans, posthoc, letters, plot.
@@ -36,108 +25,184 @@ run_rm <- function(
     adjust = c("sidak","tukey","holm","bonferroni","BH"),
     show_means = c("point","point+ci","none"),
     theme_base = ggplot2::theme_bw(),
-    spaghetti = TRUE,         # draw faint subject lines
+    spaghetti = TRUE,         # kept for API, not used in current plot
     sphericity_correction = c("GG","HF","none")  # report table using this correction
 ) {
-  .require_pkg("afex"); .require_pkg("emmeans"); .require_pkg("ggplot2")
+
   adjust <- match.arg(adjust)
   show_means <- match.arg(show_means)
   sphericity_correction <- match.arg(sphericity_correction)
 
-  # coerce
-  if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
-  df[[id]] <- .as_factor(df[[id]])
-  for (w in within) df[[w]] <- .as_factor(df[[w]])
+  # work on a local copy
+  df <- data
+
+  # coerce/check
+  if (!is.numeric(df[[dv]]))
+    stop("`dv` must be numeric.", call. = FALSE)
+
+  df[[id]] <- factor(df[[id]])
+  for (w in within) df[[w]] <- factor(df[[w]])
 
   # afex model: type III SS, sphericity tests included
   afex_mod <- afex::aov_ez(
-    id = id, dv = dv, data = df,
-    within = within, type = 3, return = "afex_aov"
+    id    = id,
+    dv    = dv,
+    data  = df,
+    within = within,
+    type  = 3,
+    return = "afex_aov"
   )
 
   # ANOVA table with requested correction
-  an_tbl <- afex::nice(afex_mod, es = "pes",
-                       correction = sphericity_correction, observed = NULL)
+  an_tbl <- afex::nice(
+    afex_mod,
+    es         = "pes",
+    correction = sphericity_correction,
+    observed   = NULL
+  )
   an_tbl <- as.data.frame(an_tbl)
 
   # choose term for posthocs/letters
   if (is.null(which_within)) {
-    which_within <- if (length(within) == 1) within[1] else paste(within, collapse = ":")
+    which_within <- if (length(within) == 1) {
+      within[1]
+    } else {
+      paste(within, collapse = ":")
+    }
   }
 
   # emmeans on chosen within term
-  emm <- try(emmeans::emmeans(afex_mod, specs = stats::as.formula(paste0("~", which_within))), silent = TRUE)
-  pw  <- if (!inherits(emm, "try-error")) emmeans::contrast(emm, "pairwise", adjust = adjust) else NULL
+  emm <- try(
+    emmeans::emmeans(
+      afex_mod,
+      specs = stats::as.formula(paste0("~", which_within))
+    ),
+    silent = TRUE
+  )
+
+  pw <- if (!inherits(emm, "try-error")) {
+    emmeans::contrast(emm, "pairwise", adjust = adjust)
+  } else {
+    NULL
+  }
+
   posthoc_tbl <- if (!is.null(pw)) broom::tidy(pw) else NULL
 
-  # Letters (optional)
+  # Letters (CLD)
   letters_df <- NULL
-  if (!is.null(emm)) {
-    cld <- try(multcomp::cld(emm, Letters = letters, adjust = adjust), silent = TRUE)
+  if (!inherits(emm, "try-error")) {
+    cld <- try(
+      multcomp::cld(emm, Letters = letters, adjust = adjust),
+      silent = TRUE
+    )
     if (!inherits(cld, "try-error")) {
       cld <- as.data.frame(cld)
       cld$.group <- gsub("\\s+", "", cld$.group)
+
       if (grepl(":", which_within)) {
         facs <- strsplit(which_within, ":")[[1]]
-        cld$.x <- interaction(cld[, facs], drop = TRUE)
-        letters_df <- cld[, c(".x", ".group")]
+        cld$combo <- interaction(cld[, facs, drop = FALSE], drop = TRUE)
+        letters_df <- cld[, c("combo", ".group")]
       } else {
         letters_df <- cld[, c(which_within, ".group")]
+        names(letters_df)[1] <- which_within
       }
     }
   }
 
-  # Plot: box+jitter, optional spaghetti, mean±CI
-  df$.x <- if (length(within) == 1) df[[within[1]]]
-  else interaction(df[, within, drop = FALSE], drop = TRUE)
-  .response <- dv
+  # --------- Summary data for plotting (grouped bar style) -------------------
 
-  mean_cl_normal_local <- function(x, conf = 0.95) {
-    x <- x[is.finite(x)]
-    n  <- length(x); m <- mean(x)
-    se <- stats::sd(x) / max(1, sqrt(n))
-    mult <- if (n > 1) stats::qt((1 + conf)/2, df = n - 1) else 0
-    data.frame(y = m, ymin = m - mult * se, ymax = m + mult * se)
+  # group by all within factors and compute mean/SE
+  summary_df <- df |>
+    dplyr::group_by(dplyr::across(dplyr::all_of(within))) |>
+    dplyr::summarise(
+      mean = mean(.data[[dv]], na.rm = TRUE),
+      se   = stats::sd(.data[[dv]], na.rm = TRUE) / sqrt(dplyr::n()),
+      .groups = "drop"
+    )
+
+  # choose x and fill to mirror run_twoway style
+  if (length(within) == 1) {
+    x_var   <- within[1]
+    fill_var <- NULL
+  } else {
+    x_var   <- within[1]
+    fill_var <- within[2]
   }
 
-  p <- ggplot2::ggplot(df, ggplot2::aes(x = .x, y = .data[[.response]])) +
-    ggplot2::geom_boxplot(outlier.shape = NA, width = 0.6) +
-    ggplot2::geom_jitter(width = 0.12, alpha = 0.5, size = 1.6)
-
-  if (spaghetti) {
-    p <- p + ggplot2::geom_line(ggplot2::aes(group = .data[[id]]), alpha = 0.25)
-  }
-
-  if (show_means == "point" || show_means == "point+ci") {
-    p <- p + ggplot2::stat_summary(fun = "mean", geom = "point", size = 2.6, shape = 21)
-    if (show_means == "point+ci") {
-      p <- p + ggplot2::stat_summary(fun.data = mean_cl_normal_local, geom = "errorbar", width = 0.2)
-    }
-  }
+  # attach letters to summary_df
+  y_pad <- 0.05 * diff(range(df[[dv]], na.rm = TRUE))
 
   if (!is.null(letters_df)) {
-    y_positions <- dplyr::group_by(df, .x) |>
-      dplyr::summarize(ymax = max(.data[[.response]], na.rm = TRUE), .groups = "drop")
-    y_range <- range(df[[.response]], na.rm = TRUE); y_pad <- 0.05 * diff(y_range)
-
-    letters_pos <- if (".x" %in% names(letters_df)) {
-      dplyr::rename(letters_df, x = .x)
+    if ("combo" %in% names(letters_df)) {
+      # interaction letters
+      summary_df <- summary_df |>
+        dplyr::mutate(combo = interaction(dplyr::across(dplyr::all_of(strsplit(which_within, ":")[[1]])), drop = TRUE))
+      label_df <- dplyr::left_join(summary_df, letters_df, by = "combo") |>
+        dplyr::mutate(y = mean + se + y_pad)
     } else {
-      dplyr::rename(letters_df, x = dplyr::all_of(names(letters_df)[1]))
+      join_var <- names(letters_df)[1]  # e.g. which_within
+      label_df <- dplyr::left_join(summary_df, letters_df, by = join_var) |>
+        dplyr::mutate(y = mean + se + y_pad)
     }
-    letters_pos <- dplyr::left_join(letters_pos, y_positions, by = c("x" = ".x")) |>
-      dplyr::mutate(y = ymax + y_pad)
-
-    p <- p + ggplot2::geom_text(data = letters_pos,
-                                ggplot2::aes(x = x, y = y, label = .group),
-                                vjust = 0, size = 5)
+  } else {
+    label_df <- NULL
   }
 
-  p <- p + ggplot2::labs(
-    x = if (length(within) == 1) within[1] else paste(within, collapse = ":"),
-    y = dv,
-    subtitle = paste0("RM-ANOVA (", sphericity_correction, " correction in table); posthocs: ", adjust)
-  ) + theme_base
+  # --------- Plot: grouped bar + SE + letters -------------------------------
+
+  pd <- ggplot2::position_dodge(width = if (is.null(fill_var)) 0.6 else 0.7)
+
+  if (is.null(fill_var)) {
+    p <- ggplot2::ggplot(summary_df, ggplot2::aes(x = .data[[x_var]], y = mean))
+  } else {
+    p <- ggplot2::ggplot(
+      summary_df,
+      ggplot2::aes(x = .data[[x_var]], y = mean, fill = .data[[fill_var]])
+    )
+  }
+
+  p <- p +
+    ggplot2::geom_col(position = pd, width = 0.6) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(ymin = mean - se, ymax = mean + se),
+      position = pd,
+      width = 0.2
+    )
+
+  if (!is.null(label_df)) {
+    p <- p +
+      ggplot2::geom_text(
+        data = label_df,
+        ggplot2::aes(label = .group, y = y),
+        position = pd,
+        vjust = 0,
+        size = 5
+      )
+  }
+
+  if (show_means %in% c("point", "point+ci")) {
+    p <- p + ggplot2::geom_point(
+      data = summary_df,
+      ggplot2::aes(y = mean),
+      position = pd,
+      color = "black",
+      size = 2
+    )
+  }
+
+  p <- p +
+    theme_base +
+    ggplot2::labs(
+      x = if (length(within) == 1) within[1] else paste(within, collapse = " × "),
+      y = dv,
+      subtitle = paste0(
+        "RM-ANOVA (", sphericity_correction,
+        " correction in table); posthocs: ", adjust
+      )
+    )
+
+  # --------- Return object ---------------------------------------------------
 
   test_info <- list(
     test = "rm_anova",
@@ -150,20 +215,20 @@ run_rm <- function(
   )
 
   res <- list(
-    test_info = test_info,
-    model = afex_mod,
+    test_info   = test_info,
+    model       = afex_mod,
     anova_table = an_tbl,
-    emmeans = if (!inherits(emm, "try-error")) emm else NULL,
-    posthoc = posthoc_tbl,
-    letters = letters_df,
-    plot = p
+    emmeans     = if (!inherits(emm, "try-error")) emm else NULL,
+    posthoc     = posthoc_tbl,
+    letters     = letters_df,
+    plot        = p
   )
   class(res) <- c("teach_anova_result", class(res))
   attr(res, "meta") <- list(
-    design = "rm_within",
-    dv = dv,
+    design  = "rm_within",
+    dv      = dv,
     factors = list(within = within, which_factor = which_within),
-    adjust = adjust
+    adjust  = adjust
   )
   res
 }
