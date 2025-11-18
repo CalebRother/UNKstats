@@ -103,35 +103,62 @@ run_twoway <- function(
       dplyr::mutate(y = mean + se + y_pad)
   }
   
-  # --- plot (grouped bar) ----------------------------------------------------
+  # --- plot (box + jitter, grouped) ------------------------------------------
   pd <- ggplot2::position_dodge(width = 0.7)
+  
+  # main layers: boxplots + jittered raw points
   p <- ggplot2::ggplot(
-    summary_df,
-    ggplot2::aes(x = .data[[factor_a]], y = mean, fill = .data[[factor_b]])
+    df,
+    ggplot2::aes(x = .data[[factor_a]], y = .data[[dv]], fill = .data[[factor_b]])
   ) +
-    ggplot2::geom_col(position = pd, width = 0.6) +
-    ggplot2::geom_errorbar(
-      ggplot2::aes(ymin = mean - se, ymax = mean + se),
+    ggplot2::geom_boxplot(
       position = pd,
-      width = 0.2
+      outlier.shape = NA,
+      width = 0.6
     ) +
-    ggplot2::geom_text(
-      data = label_df,
-      ggplot2::aes(label = .group, y = y),
-      position = pd,
-      vjust = 0,
-      size = 5
-    ) +
-    {
-      if (show_means == "point")
-        ggplot2::geom_point(
-          data = summary_df,
-          ggplot2::aes(y = mean),
-          position = pd,
-          color = "black",
-          size = 2
-        ) else NULL
-    } +
+    ggplot2::geom_jitter(
+      position = ggplot2::position_jitterdodge(
+        jitter.width = 0.12,
+        dodge.width  = 0.7
+      ),
+      alpha = 0.5,
+      size  = 1.4
+    )
+  
+  # letters (built earlier in label_df from summary_df)
+  if (!is.null(label_df)) {
+    p <- p +
+      ggplot2::geom_text(
+        data = label_df,
+        ggplot2::aes(
+          x     = .data[[factor_a]],
+          y     = y,
+          label = .group,
+          group = .data[[factor_b]]
+        ),
+        position = pd,
+        vjust    = 0,
+        size     = 5
+      )
+  }
+  
+  # optional mean points on top of boxes (using summary_df)
+  if (show_means == "point") {
+    p <- p +
+      ggplot2::geom_point(
+        data = summary_df,
+        ggplot2::aes(
+          x = .data[[factor_a]],
+          y = mean,
+          group = .data[[factor_b]]
+        ),
+        position = pd,
+        color    = "black",
+        size     = 2
+      )
+  }
+  
+  p <- p +
     theme_base +
     ggplot2::labs(
       x = factor_a,
@@ -142,6 +169,7 @@ run_twoway <- function(
         if (include_interaction) " (with interaction)" else ""
       )
     )
+  
   
   # --- return ----------------------------------------------------------------
   out <- list(
