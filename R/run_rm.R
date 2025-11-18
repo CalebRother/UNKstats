@@ -3,15 +3,21 @@
 #' Fits an RM-ANOVA via `afex::aov_ez()`, reports GG/HF corrections,
 #' and provides optional emmeans pairwise comparisons with letters.
 #'
+#' Plot style: boxplots + jittered raw points, optionally with mean points
+#' (and mean ± ~2*SE if `show_means = "point+ci"`), and compact letter
+#' display above groups – visually consistent with `run_twoway()`.
+#'
 #' @param data A data frame.
 #' @param dv Character. Numeric DV column name.
 #' @param id Character. Subject identifier column.
 #' @param within Character vector of within-subject factor(s).
-#' @param which_within Character. Term for emmeans/posthocs (e.g. "Time" or "Time:Condition").
+#' @param which_within Character. Term for emmeans/posthocs
+#'   (e.g. "Time" or "Time:Condition"). If NULL, uses the single within factor,
+#'   or the interaction of all within factors if there are 2+.
 #' @param adjust P-adjust for emmeans ("sidak","tukey","holm","bonferroni","BH").
 #' @param show_means "point","point+ci","none".
 #' @param theme_base ggplot2 theme.
-#' @param spaghetti Logical. (Currently unused for plotting; reserved for future.)
+#' @param spaghetti Logical. Reserved for future (currently not used in plot).
 #' @param sphericity_correction "GG","HF","none" for ANOVA table.
 #'
 #' @return A list with test_info, model, anova_table, emmeans, posthoc, letters, plot.
@@ -43,7 +49,7 @@ run_rm <- function(
   df[[id]] <- factor(df[[id]])
   for (w in within) df[[w]] <- factor(df[[w]])
 
-  # afex model: type III SS, sphericity tests included
+  # ----------------- Fit RM-ANOVA via afex -----------------------------------
   afex_mod <- afex::aov_ez(
     id    = id,
     dv    = dv,
@@ -62,7 +68,7 @@ run_rm <- function(
   )
   an_tbl <- as.data.frame(an_tbl)
 
-  # choose term for posthocs/letters
+  # ----------------- Choose term for posthocs/letters ------------------------
   if (is.null(which_within)) {
     which_within <- if (length(within) == 1) {
       within[1]
@@ -88,7 +94,7 @@ run_rm <- function(
 
   posthoc_tbl <- if (!is.null(pw)) broom::tidy(pw) else NULL
 
-  # Letters (CLD)
+  # ----------------- Letters (CLD) -------------------------------------------
   letters_df <- NULL
   if (!inherits(emm, "try-error")) {
     cld <- try(
@@ -100,19 +106,19 @@ run_rm <- function(
       cld$.group <- gsub("\\s+", "", cld$.group)
 
       if (grepl(":", which_within)) {
+        # interaction term
         facs <- strsplit(which_within, ":")[[1]]
         cld$combo <- interaction(cld[, facs, drop = FALSE], drop = TRUE)
         letters_df <- cld[, c("combo", ".group")]
       } else {
+        # single within factor
         letters_df <- cld[, c(which_within, ".group")]
         names(letters_df)[1] <- which_within
       }
     }
   }
 
-  # --------- Summary data for plotting (grouped bar style) -------------------
-
-  # group by all within factors and compute mean/SE
+  # ----------------- Summary data for plotting -------------------------------
   summary_df <- df |>
     dplyr::group_by(dplyr::across(dplyr::all_of(within))) |>
     dplyr::summarise(
@@ -123,24 +129,30 @@ run_rm <- function(
 
   # choose x and fill to mirror run_twoway style
   if (length(within) == 1) {
-    x_var   <- within[1]
+    x_var    <- within[1]
     fill_var <- NULL
   } else {
-    x_var   <- within[1]
+    x_var    <- within[1]
     fill_var <- within[2]
   }
 
-  # attach letters to summary_df
+  # attach letters to summary_df and compute label heights
   y_pad <- 0.05 * diff(range(df[[dv]], na.rm = TRUE))
 
   if (!is.null(letters_df)) {
     if ("combo" %in% names(letters_df)) {
-      # interaction letters
+      # interaction letters: build combo column to join on
       summary_df <- summary_df |>
-        dplyr::mutate(combo = interaction(dplyr::across(dplyr::all_of(strsplit(which_within, ":")[[1]])), drop = TRUE))
+        dplyr::mutate(
+          combo = interaction(
+            dplyr::across(dplyr::all_of(strsplit(which_within, ":")[[1]])),
+            drop = TRUE
+          )
+        )
       label_df <- dplyr::left_join(summary_df, letters_df, by = "combo") |>
         dplyr::mutate(y = mean + se + y_pad)
     } else {
+      # main-effect letters: join on that factor
       join_var <- names(letters_df)[1]  # e.g. which_within
       label_df <- dplyr::left_join(summary_df, letters_df, by = join_var) |>
         dplyr::mutate(y = mean + se + y_pad)
@@ -149,46 +161,136 @@ run_rm <- function(
     label_df <- NULL
   }
 
-  # --------- Plot: grouped bar + SE + letters -------------------------------
-
+  # ----------------- Plot: box + jitter, grouped -----------------------------
   pd <- ggplot2::position_dodge(width = if (is.null(fill_var)) 0.6 else 0.7)
 
   if (is.null(fill_var)) {
-    p <- ggplot2::ggplot(summary_df, ggplot2::aes(x = .data[[x_var]], y = mean))
-  } else {
+    # one within factor: x only
     p <- ggplot2::ggplot(
-      summary_df,
-      ggplot2::aes(x = .data[[x_var]], y = mean, fill = .data[[fill_var]])
-    )
-  }
-
-  p <- p +
-    ggplot2::geom_col(position = pd, width = 0.6) +
-    ggplot2::geom_errorbar(
-      ggplot2::aes(ymin = mean - se, ymax = mean + se),
-      position = pd,
-      width = 0.2
-    )
-
-  if (!is.null(label_df)) {
-    p <- p +
-      ggplot2::geom_text(
-        data = label_df,
-        ggplot2::aes(label = .group, y = y),
-        position = pd,
-        vjust = 0,
-        size = 5
+      df,
+      ggplot2::aes(x = .data[[x_var]], y = .data[[dv]])
+    ) +
+      ggplot2::geom_boxplot(
+        position      = pd,
+        outlier.shape = NA,
+        width         = 0.6
+      ) +
+      ggplot2::geom_jitter(
+        position = ggplot2::position_jitter(width = 0.12),
+        alpha    = 0.5,
+        size     = 1.4
+      )
+  } else {
+    # two within factors: x and fill (like run_twoway)
+    p <- ggplot2::ggplot(
+      df,
+      ggplot2::aes(x = .data[[x_var]], y = .data[[dv]], fill = .data[[fill_var]])
+    ) +
+      ggplot2::geom_boxplot(
+        position      = pd,
+        outlier.shape = NA,
+        width         = 0.6
+      ) +
+      ggplot2::geom_jitter(
+        position = ggplot2::position_jitterdodge(
+          jitter.width = 0.12,
+          dodge.width  = 0.7
+        ),
+        alpha = 0.5,
+        size  = 1.4
       )
   }
 
+  # letters on top
+  if (!is.null(label_df)) {
+    if (is.null(fill_var)) {
+      # one factor: no need for group in dodge
+      p <- p +
+        ggplot2::geom_text(
+          data = label_df,
+          ggplot2::aes(
+            x     = .data[[x_var]],
+            y     = y,
+            label = .group
+          ),
+          vjust = 0,
+          size  = 5
+        )
+    } else {
+      # two factors: dodge by fill
+      p <- p +
+        ggplot2::geom_text(
+          data = label_df,
+          ggplot2::aes(
+            x     = .data[[x_var]],
+            y     = y,
+            label = .group,
+            group = .data[[fill_var]]
+          ),
+          position = pd,
+          vjust    = 0,
+          size     = 5
+        )
+    }
+  }
+
+  # optional mean points and CI on top of boxes
   if (show_means %in% c("point", "point+ci")) {
-    p <- p + ggplot2::geom_point(
-      data = summary_df,
-      ggplot2::aes(y = mean),
-      position = pd,
-      color = "black",
-      size = 2
-    )
+    # mean points
+    if (is.null(fill_var)) {
+      p <- p +
+        ggplot2::geom_point(
+          data = summary_df,
+          ggplot2::aes(
+            x = .data[[x_var]],
+            y = mean
+          ),
+          color    = "black",
+          size     = 2
+        )
+    } else {
+      p <- p +
+        ggplot2::geom_point(
+          data = summary_df,
+          ggplot2::aes(
+            x     = .data[[x_var]],
+            y     = mean,
+            group = .data[[fill_var]]
+          ),
+          position = pd,
+          color    = "black",
+          size     = 2
+        )
+    }
+
+    # crude ~95% CI bars from mean ± 2*SE, if requested
+    if (show_means == "point+ci") {
+      if (is.null(fill_var)) {
+        p <- p +
+          ggplot2::geom_errorbar(
+            data = summary_df,
+            ggplot2::aes(
+              x    = .data[[x_var]],
+              ymin = mean - 2 * se,
+              ymax = mean + 2 * se
+            ),
+            width = 0.15
+          )
+      } else {
+        p <- p +
+          ggplot2::geom_errorbar(
+            data = summary_df,
+            ggplot2::aes(
+              x    = .data[[x_var]],
+              ymin = mean - 2 * se,
+              ymax = mean + 2 * se,
+              group = .data[[fill_var]]
+            ),
+            position = pd,
+            width    = 0.15
+          )
+      }
+    }
   }
 
   p <- p +
@@ -202,8 +304,7 @@ run_rm <- function(
       )
     )
 
-  # --------- Return object ---------------------------------------------------
-
+  # ----------------- Return object -------------------------------------------
   test_info <- list(
     test = "rm_anova",
     normality_ok = NA, normality_note = "rm_model",
