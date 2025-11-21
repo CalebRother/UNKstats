@@ -1,3 +1,10 @@
+#' Calculating the coefficient of variation for a numeric vector.
+
+#' @param x Numeric; numeric vector.
+#'
+#' @return A value for the coefficient of variation for a given numeric vector.
+#' @export
+
 #' One-way comparison (ANOVA or Kruskal–Wallis only)
 #'
 #' @param data A data frame.
@@ -17,29 +24,41 @@ run_oneway <- function(
     data,
     dv,
     group,
+    blocking = NULL,
     parametric = FALSE,
     adjust = c("tukey","sidak","holm","bonferroni","BH"),
     show_means = c("point","none"),
     theme_base = ggplot2::theme_bw()
 ) {
-
+  
   adjust <- match.arg(adjust)
   show_means <- match.arg(show_means)
-
-  df <- data[stats::complete.cases(data[, c(dv, group), drop = FALSE]), , drop = FALSE]
+  
+  if(is.null(blocking)){
+    df <- data[stats::complete.cases(data[, c(dv, group), drop = FALSE]), , drop = FALSE]
+  }else{
+    df <- data[stats::complete.cases(data[, c(dv, group, blocking), drop = FALSE]), , drop = FALSE]
+    df[[blocking]] <- as.factor(df[[blocking]]) 
+  }
+  
   if (nrow(df) < nrow(data)) {
     message("Removed ", nrow(data) - nrow(df),
             " row(s) with missing values in {", dv, ", ", group, "}." )
   }
-
- # coerce types ----------------------------------------------------------
-if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
-df[[group]] <- as.factor(df[[group]])
-
-
+  
+  # coerce types ----------------------------------------------------------
+  if (!is.numeric(df[[dv]])) stop("`dv` must be numeric.", call. = FALSE)
+  df[[group]] <- as.factor(df[[group]])
+  
+  
   # helpers ---------------------------------------------------------------
-  fml <- stats::as.formula(paste(dv, "~", group))
-
+  if(is.null(blocking)){
+    fml <- stats::as.formula(paste(dv, "~", group))
+  }else{
+    fml <- stats::as.formula(paste(dv, "~", group, "+", blocking))
+  }
+  
+  
   pmat_to_letters <- function(pairs_df, g1, g2, pcol, alpha = 0.05) {
     groups <- sort(unique(c(as.character(pairs_df[[g1]]), as.character(pairs_df[[g2]]))))
     M <- matrix(1, length(groups), length(groups), dimnames = list(groups, groups))
@@ -49,13 +68,13 @@ df[[group]] <- as.factor(df[[group]])
     }
     multcompView::multcompLetters(M < alpha, compare = "<")$Letters
   }
-
+  
   # run -------------------------------------------------------------------
   if (isTRUE(parametric)) {
     # -------- One-way ANOVA + TukeyHSD --------
     fit <- stats::aov(fml, data = df)
     an_tbl <- broom::tidy(stats::anova(fit))
-
+    
     tk <- stats::TukeyHSD(fit)[[group]]
     posthoc <- tibble::tibble(
       contrast = rownames(tk),
@@ -67,13 +86,13 @@ df[[group]] <- as.factor(df[[group]])
     spl <- strsplit(posthoc$contrast, "-")
     posthoc$group2 <- vapply(spl, `[`, character(1), 1)
     posthoc$group1 <- vapply(spl, `[`, character(1), 2)
-
+    
     letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
     letters_df <- tibble::tibble(!!group := names(letters_vec), .group = unname(letters_vec))
-
+    
     subtitle_txt <- "One-way ANOVA + Tukey HSD"
     model <- fit
-
+    
   } else {
     # -------- Kruskal–Wallis + Dunn (BH) --------
     kw <- stats::kruskal.test(fml, data = df)
@@ -84,22 +103,22 @@ df[[group]] <- as.factor(df[[group]])
       p.value = unname(kw$p.value),
       method = "Kruskal–Wallis"
     )
-
+    
     dunn <- rstatix::dunn_test(df, fml, p.adjust.method = "BH")
     posthoc <- dplyr::transmute(dunn, group1 = group1, group2 = group2, p.adj = p.adj)
-
+    
     letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
     letters_df <- tibble::tibble(!!group := names(letters_vec), .group = unname(letters_vec))
-
+    
     subtitle_txt <- "Kruskal–Wallis + Dunn (BH)"
     model <- NULL
   }
-
+  
   # plot ------------------------------------------------------------------
   y_range <- range(df[[dv]], na.rm = TRUE)
   y_pad   <- 0.05 * diff(y_range)
   y_top   <- max(df[[dv]], na.rm = TRUE) + y_pad
-
+  
   p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[group]], y = .data[[dv]])) +
     ggplot2::geom_boxplot(outlier.shape = NA, width = 0.6) +
     ggplot2::geom_jitter(width = 0.12, alpha = 0.5, size = 1.6) +
@@ -123,7 +142,7 @@ df[[group]] <- as.factor(df[[group]])
     ) +
     theme_base +
     ggplot2::labs(x = group, y = dv, subtitle = subtitle_txt)
-
+  
   # return ----------------------------------------------------------------
   out <- list(
     test_info = list(
@@ -136,7 +155,7 @@ df[[group]] <- as.factor(df[[group]])
     letters = letters_df,
     plot = p
   )
-
+  
   class(out) <- c("teach_anova_result", class(out))
   attr(out, "meta") <- list(
     design = "oneway_between",
@@ -145,6 +164,6 @@ df[[group]] <- as.factor(df[[group]])
     adjust = if (parametric) adjust else "BH",
     parametric = parametric
   )
-
+  
   out
 }

@@ -2,7 +2,7 @@
 % Please edit documentation in R/run_twoway.R
 \name{run_twoway}
 \alias{run_twoway}
-\title{Two-way factorial ANOVA (Grouped-Bar Version)}
+\title{Two-way factorial ANOVA (Grouped-Boxplot Version)}
 \usage{
 run_twoway(
   data,
@@ -25,15 +25,16 @@ run_twoway(
 
 \item{factor_b}{Character; second factor (main effect B, used for color fill).}
 
-\item{include_interaction}{Logical; if TRUE includes A*B interaction term (default TRUE).}
+\item{include_interaction}{Logical; if TRUE includes A*B interaction term in the ANOVA table.
+(Note: The underlying model in afex fits the interaction to calculate Type III SS correctly).}
 
 \item{which_factor}{Character; which term to perform post-hoc tests on
-(e.g., "A", "B", or "A:B"). Defaults to "A" if unspecified.}
+(e.g., "Dose", "Temp", or "Dose:Temp"). Defaults to \code{factor_a} if unspecified.}
 
 \item{adjust}{Adjustment method for pairwise comparisons
 ("tukey","sidak","holm","bonferroni","BH").}
 
-\item{show_means}{"point" or "none" — controls whether to show mean points on bars.}
+\item{show_means}{"point" or "none" — controls whether to show mean points on top of boxes.}
 
 \item{theme_base}{A ggplot2 theme (default = \code{ggplot2::theme_bw()}).}
 }
@@ -41,27 +42,16 @@ run_twoway(
 A list containing:
 \itemize{
 \item \code{test_info} — basic metadata on the test.
-\item \code{model} — the ANOVA model object.
-\item \code{anova_table} — ANOVA summary table.
+\item \code{model} — the afex ANOVA model object.
+\item \code{anova_table} — ANOVA summary table (Type III SS).
 \item \code{posthoc} — post-hoc pairwise comparison results.
 \item \code{letters} — compact letter display results.
-\item \code{plot} — grouped bar chart (ggplot object).
+\item \code{plot} — grouped boxplot (ggplot object).
 }
 Class \code{"teach_anova_result"}.
 }
 \description{
-Fits a 2×(2+) between-subjects factorial ANOVA, optionally including interaction.
-Performs post-hoc pairwise comparisons for a chosen term via \code{emmeans},
-produces compact letter displays, and visualizes results with a grouped bar chart.
-}
-\examples{
-set.seed(123)
-df <- expand.grid(
-  A = factor(c("Low","High")),
-  B = factor(c("X","Y","Z"))
-)
-df$Response <- rnorm(nrow(df), mean = rep(c(5,7,9,6,8,10), each = 1), sd = 1)
-result <- run_twoway(df, dv = "Response", factor_a = "A", factor_b = "B")
-result$plot
-
+Fits a 2x(2+) between-subjects factorial ANOVA (via afex).
+Performs post-hoc pairwise comparisons via \code{emmeans}, produces compact letter displays,
+and visualizes results with a grouped boxplot + jitter.
 }

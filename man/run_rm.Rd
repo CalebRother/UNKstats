@@ -11,7 +11,7 @@ run_rm(
   within,
   which_within = NULL,
   adjust = c("sidak", "tukey", "holm", "bonferroni", "BH"),
-  show_means = c("point", "point+ci", "none"),
+  show_means = c("point", "none"),
   theme_base = ggplot2::theme_bw(),
   spaghetti = TRUE,
   sphericity_correction = c("GG", "HF", "none")
@@ -26,15 +26,17 @@ run_rm(
 
 \item{within}{Character vector of within-subject factor(s).}
 
-\item{which_within}{Character. Term for emmeans/posthocs (e.g. "Time" or "Time:Condition").}
+\item{which_within}{Character. Term for emmeans/posthocs
+(e.g. "Time" or "Time:Condition"). If NULL, uses the single within factor,
+or the interaction of all within factors if there are 2+.}
 
 \item{adjust}{P-adjust for emmeans ("sidak","tukey","holm","bonferroni","BH").}
 
-\item{show_means}{"point","point+ci","none".}
+\item{show_means}{"point" or "none".}
 
 \item{theme_base}{ggplot2 theme.}
 
-\item{spaghetti}{Logical. Draw per-subject lines.}
+\item{spaghetti}{Logical. Reserved for future (currently not used in plot).}
 
 \item{sphericity_correction}{"GG","HF","none" for ANOVA table.}
 }
@@ -44,4 +46,7 @@ A list with test_info, model, anova_table, emmeans, posthoc, letters, plot.
 \description{
 Fits an RM-ANOVA via \code{afex::aov_ez()}, reports GG/HF corrections,
 and provides optional emmeans pairwise comparisons with letters.
+}
+\details{
+Visualizes results with boxplots and jittered raw points.
 }
