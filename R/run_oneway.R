@@ -10,6 +10,7 @@
 #' @param data A data frame.
 #' @param dv Character; numeric outcome column.
 #' @param group Character; grouping factor (≥3 levels recommended).
+#' @param blocking Character; column to block by for repeated measures or for Randomized Complete Block ANOVA.
 #' @param parametric Logical; if TRUE runs classic one-way ANOVA (+ Tukey HSD),
 #'   if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).
 #' @param adjust P-adjust for ANOVA Tukey letters display label only

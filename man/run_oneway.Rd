@@ -22,6 +22,8 @@ run_oneway(
 
 \item{group}{Character; grouping factor (≥3 levels recommended).}
 
+\item{blocking}{Character; column to block by for repeated measures or for Randomized Complete Block ANOVA.}
+
 \item{parametric}{Logical; if TRUE runs classic one-way ANOVA (+ Tukey HSD),
 if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).}
 
