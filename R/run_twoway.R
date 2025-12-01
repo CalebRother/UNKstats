@@ -223,7 +223,9 @@ run_twoway <- function(
     anova_table = an_tbl,
     posthoc     = posthoc,
     letters     = letters_df,
-    plot        = p
+    plot        = p + theme(axis.text.x = element_text(angle=90, 
+                                                       vjust=.5, 
+                                                       hjust=1))
   )
   
   class(out) <- c("teach_anova_result", class(out))
