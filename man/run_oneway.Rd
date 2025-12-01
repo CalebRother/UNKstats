@@ -2,13 +2,12 @@
 % Please edit documentation in R/run_oneway.R
 \name{run_oneway}
 \alias{run_oneway}
-\title{Calculating the coefficient of variation for a numeric vector.}
+\title{One-way comparison (ANOVA or Kruskal–Wallis only)}
 \usage{
 run_oneway(
   data,
   dv,
   group,
-  blocking = NULL,
   parametric = FALSE,
   adjust = c("tukey", "sidak", "holm", "bonferroni", "BH"),
   show_means = c("point", "none"),
@@ -22,8 +21,6 @@ run_oneway(
 
 \item{group}{Character; grouping factor (≥3 levels recommended).}
 
-\item{blocking}{Character; column to block by for repeated measures or for Randomized Complete Block ANOVA.}
-
 \item{parametric}{Logical; if TRUE runs classic one-way ANOVA (+ Tukey HSD),
 if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).}
 
@@ -33,15 +30,11 @@ if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).}
 \item{show_means}{"point","none" — controls mean point display.}
 
 \item{theme_base}{ggplot2 theme.}
-
-\item{x}{Numeric; numeric vector.}
 }
 \value{
-A value for the coefficient of variation for a given numeric vector.
-
 A list with test_info, model (ANOVA only), anova_table,
 posthoc, letters, plot. Class "teach_anova_result".
 }
 \description{
-Calculating the coefficient of variation for a numeric vector.
+One-way comparison (ANOVA or Kruskal–Wallis only)
 }

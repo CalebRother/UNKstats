@@ -7,7 +7,7 @@
 #' @return A printout of values needed for correlations, including values for testing them and p values for reporting.
 #' @export
 
-biol305_cor <- function(x=NA, y=NA, method = "pearson"){
+correlation_test <- function(x=NA, y=NA, method = "pearson"){
   if(is.data.frame(x)==T){
     if(ncol(x)==2){
       r <- cor(x[,1], x[,2], method = method)
