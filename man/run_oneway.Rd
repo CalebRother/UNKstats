@@ -8,6 +8,7 @@ run_oneway(
   data,
   dv,
   group,
+  blocking = NULL,
   parametric = FALSE,
   adjust = c("tukey", "sidak", "holm", "bonferroni", "BH"),
   show_means = c("point", "none"),
@@ -20,6 +21,9 @@ run_oneway(
 \item{dv}{Character; numeric outcome column.}
 
 \item{group}{Character; grouping factor (≥3 levels recommended).}
+
+\item{blocking}{Character; optional block factor column name for randomized
+block ANOVA (parametric only). Use \code{run_rm()} for repeated-measures designs.}
 
 \item{parametric}{Logical; if TRUE runs classic one-way ANOVA (+ Tukey HSD),
 if FALSE (default) runs Kruskal–Wallis (+ Dunn, BH).}
@@ -36,5 +40,13 @@ A list with test_info, model (ANOVA only), anova_table,
 posthoc, letters, plot. Class "teach_anova_result".
 }
 \description{
-One-way comparison (ANOVA or Kruskal–Wallis only)
+Performs a one-way between-subjects comparison on a numeric outcome.
+If \code{parametric = TRUE}, runs a classic one-way ANOVA with Tukey HSD
+post-hoc tests. If \code{parametric = FALSE} (default), runs Kruskal–Wallis
+with Dunn post-hoc tests (BH-adjusted).
+}
+\details{
+If \code{blocking} is supplied (e.g., a block or subject ID), a randomized
+block ANOVA is fit via \code{dv ~ group + blocking} when \code{parametric = TRUE}.
+Blocking is \emph{not} supported for the Kruskal–Wallis version.
 }
