@@ -1,14 +1,3 @@
-#' Calculating the coefficient of variation for a numeric vector.
-#'
-#' @param x Numeric; numeric vector.
-#'
-#' @return A value for the coefficient of variation for a given numeric vector.
-#' @export
-cv <- function(x) {
-  stats::sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)
-}
-
-
 #' One-way comparison (ANOVA or Kruskal–Wallis only)
 #'
 #' Performs a one-way between-subjects comparison on a numeric outcome.
