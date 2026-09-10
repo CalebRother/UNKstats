@@ -3,16 +3,20 @@
 #' Fits a 2x(2+) between-subjects factorial ANOVA (via afex).
 #' Performs post-hoc pairwise comparisons via `emmeans`, produces compact letter displays,
 #' and visualizes results with a grouped boxplot + jitter.
+#' @import dplyr
+#' @import afex
+#' @import emmeans
+#' @import tidyverse
 #'
 #' @param data A data frame containing the variables to be analyzed.
-#' @param dv Character; name of the numeric dependent variable.
-#' @param factor_a Character; first factor (main effect A, used for x-axis grouping).
-#' @param factor_b Character; second factor (main effect B, used for color fill).
-#' @param include_interaction Logical; if TRUE includes A*B interaction term in the ANOVA table.
+#' @param dv Character; name of the numeric dependent variable, placed in quotes.
+#' @param factor_a Character; first factor (main effect A, used for x-axis grouping), placed in quotes.
+#' @param factor_b Character; second factor (main effect B, used for color fill), placed in quotes.
+#' @param include_interaction Logical; if TRUE includes A*B interaction term in the ANOVA table. Must be listed in quotes as "factor_a:factor_b".
 #'   (Note: The underlying model in afex fits the interaction to calculate Type III SS correctly).
-#' @param which_factor Character; which term to perform post-hoc tests on
+#' @param which_factor Character; term on which to perform post-hoc tests.
 #'   (e.g., "Dose", "Temp", or "Dose:Temp"). Defaults to `factor_a` if unspecified.
-#' @param adjust Adjustment method for pairwise comparisons
+#' @param adjust Adjustment method for pairwise comparisons.
 #'   ("tukey","sidak","holm","bonferroni","BH").
 #' @param show_means "point" or "none" — controls whether to show mean points on top of boxes.
 #' @param theme_base A ggplot2 theme (default = `ggplot2::theme_bw()`).

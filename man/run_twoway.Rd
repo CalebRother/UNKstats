@@ -19,19 +19,19 @@ run_twoway(
 \arguments{
 \item{data}{A data frame containing the variables to be analyzed.}
 
-\item{dv}{Character; name of the numeric dependent variable.}
+\item{dv}{Character; name of the numeric dependent variable, placed in quotes.}
 
-\item{factor_a}{Character; first factor (main effect A, used for x-axis grouping).}
+\item{factor_a}{Character; first factor (main effect A, used for x-axis grouping), placed in quotes.}
 
-\item{factor_b}{Character; second factor (main effect B, used for color fill).}
+\item{factor_b}{Character; second factor (main effect B, used for color fill), placed in quotes.}
 
-\item{include_interaction}{Logical; if TRUE includes A*B interaction term in the ANOVA table.
+\item{include_interaction}{Logical; if TRUE includes A*B interaction term in the ANOVA table. Must be listed in quotes as "factor_a:factor_b".
 (Note: The underlying model in afex fits the interaction to calculate Type III SS correctly).}
 
-\item{which_factor}{Character; which term to perform post-hoc tests on
+\item{which_factor}{Character; term on which to perform post-hoc tests.
 (e.g., "Dose", "Temp", or "Dose:Temp"). Defaults to \code{factor_a} if unspecified.}
 
-\item{adjust}{Adjustment method for pairwise comparisons
+\item{adjust}{Adjustment method for pairwise comparisons.
 ("tukey","sidak","holm","bonferroni","BH").}
 
 \item{show_means}{"point" or "none" — controls whether to show mean points on top of boxes.}
