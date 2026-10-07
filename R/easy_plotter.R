@@ -37,6 +37,7 @@ easy_plotter <- function(data = NULL,
     theme_base +
     geom_errorbar(aes(ymin = mu - .data[[error_measure]], 
                       ymax = mu + .data[[error_measure]])) +
+    ylab("Mean") +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
   
   return(a)
