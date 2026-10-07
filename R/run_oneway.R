@@ -34,10 +34,10 @@ run_oneway <- function(
     show_means = c("point","none"),
     theme_base = ggplot2::theme_bw()
 ) {
-
+  
   adjust     <- match.arg(adjust)
   show_means <- match.arg(show_means)
-
+  
   # Guard: blocking only implemented for parametric
   if (!is.null(blocking) && !isTRUE(parametric)) {
     stop("`blocking` is currently supported only when `parametric = TRUE` ",
@@ -45,7 +45,7 @@ run_oneway <- function(
          "use `run_rm()` or a Friedman-type test.",
          call. = FALSE)
   }
-
+  
   # --------------------------------------------------------------------
   # Drop incomplete cases, including blocking if present
   # --------------------------------------------------------------------
@@ -57,7 +57,7 @@ run_oneway <- function(
                , drop = FALSE]
     df[[blocking]] <- as.factor(df[[blocking]])
   }
-
+  
   if (nrow(df) < nrow(data)) {
     msg_cols <- if (is.null(blocking)) {
       paste0(dv, ", ", group)
@@ -67,7 +67,7 @@ run_oneway <- function(
     message("Removed ", nrow(data) - nrow(df),
             " row(s) with missing values in {", msg_cols, "}." )
   }
-
+  
   # --------------------------------------------------------------------
   # Coerce types
   # --------------------------------------------------------------------
@@ -75,7 +75,7 @@ run_oneway <- function(
     stop("`dv` must be numeric.", call. = FALSE)
   }
   df[[group]] <- as.factor(df[[group]])
-
+  
   # --------------------------------------------------------------------
   # Build formula: with or without blocking
   # --------------------------------------------------------------------
@@ -84,7 +84,7 @@ run_oneway <- function(
   } else {
     fml <- stats::as.formula(paste(dv, "~", group, "+", blocking))
   }
-
+  
   # --------------------------------------------------------------------
   # Helper: p-value matrix -> letters
   # --------------------------------------------------------------------
@@ -102,7 +102,7 @@ run_oneway <- function(
     }
     multcompView::multcompLetters(M < alpha, compare = "<")$Letters
   }
-
+  
   # --------------------------------------------------------------------
   # Run test
   # --------------------------------------------------------------------
@@ -110,7 +110,7 @@ run_oneway <- function(
     # -------- One-way (or randomized block) ANOVA + TukeyHSD --------
     fit    <- stats::aov(fml, data = df)
     an_tbl <- broom::tidy(stats::anova(fit))
-
+    
     tk <- stats::TukeyHSD(fit)[[group]]
     posthoc <- tibble::tibble(
       contrast = rownames(tk),
@@ -122,18 +122,18 @@ run_oneway <- function(
     spl <- strsplit(posthoc$contrast, "-")
     posthoc$group2 <- vapply(spl, `[`, character(1), 1)
     posthoc$group1 <- vapply(spl, `[`, character(1), 2)
-
+    
     letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
     letters_df  <- tibble::tibble(!!group := names(letters_vec),
                                   .group   = unname(letters_vec))
-
+    
     subtitle_txt <- if (is.null(blocking)) {
       "One-way ANOVA + Tukey HSD"
     } else {
       "Randomized block ANOVA + Tukey HSD"
     }
     model <- fit
-
+    
   } else {
     # -------- Kruskal–Wallis + Dunn (BH) --------
     kw <- stats::kruskal.test(fml, data = df)
@@ -144,28 +144,28 @@ run_oneway <- function(
       p.value   = unname(kw$p.value),
       method    = "Kruskal–Wallis"
     )
-
+    
     dunn <- rstatix::dunn_test(df, fml, p.adjust.method = "BH")
     posthoc <- dplyr::transmute(dunn,
                                 group1 = group1,
                                 group2 = group2,
                                 p.adj  = p.adj)
-
+    
     letters_vec <- pmat_to_letters(posthoc, "group1", "group2", "p.adj", alpha = 0.05)
     letters_df  <- tibble::tibble(!!group := names(letters_vec),
                                   .group   = unname(letters_vec))
-
+    
     subtitle_txt <- "Kruskal–Wallis + Dunn (BH)"
     model        <- NULL
   }
-
+  
   # --------------------------------------------------------------------
   # Plot
   # --------------------------------------------------------------------
   y_range <- range(df[[dv]], na.rm = TRUE)
   y_pad   <- 0.05 * diff(y_range)
   y_top   <- max(df[[dv]], na.rm = TRUE) + y_pad
-
+  
   p <- ggplot2::ggplot(df, ggplot2::aes(x = .data[[group]], y = .data[[dv]])) +
     ggplot2::geom_boxplot(outlier.shape = NA, width = 0.6) +
     ggplot2::geom_jitter(width = 0.12, alpha = 0.5, size = 1.6) +
@@ -189,7 +189,7 @@ run_oneway <- function(
     ) +
     theme_base +
     ggplot2::labs(x = group, y = dv, subtitle = subtitle_txt)
-
+  
   # --------------------------------------------------------------------
   # Return
   # --------------------------------------------------------------------
@@ -204,7 +204,7 @@ run_oneway <- function(
     letters     = letters_df,
     plot        = p
   )
-
+  
   class(out) <- c("teach_anova_result", class(out))
   attr(out, "meta") <- list(
     design    = "oneway_between",
@@ -216,6 +216,6 @@ run_oneway <- function(
     adjust    = if (parametric) adjust else "BH",
     parametric = parametric
   )
-
+  
   out
 }
